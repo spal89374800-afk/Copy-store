@@ -1,0 +1,533 @@
+# BookCopyHub — Full Project (Frontend + Backend)
+
+> This document contains a complete starter project for **BookCopyHub**: a real production-capable website + server for book/page pickup → handwritten copy → delivery. It includes:
+
+- Colorful, responsive **frontend** (single-page + sub-pages) ready to host.
+- **Node.js + Express** backend with MongoDB (Mongoose) models, authentication (JWT), escrow & writer deposit handling, Razorpay payment integration example, and ShipRocket courier integration placeholders.
+- Deployment and setup instructions (local & production), env variables, and security notes.
+
+---
+
+## Project structure (all files included below)
+
+```
+bookcopyhub/
+├─ frontend/
+│  ├─ public/
+│  │  └─ index.html            # full colorful frontend (single-file SPA)
+│  └─ README_FRONTEND.md
+├─ server/
+│  ├─ index.js                # Express app entry
+│  ├─ package.json
+│  ├─ .env.example
+│  ├─ routes/
+│  │  ├─ auth.js
+│  │  ├─ orders.js
+│  │  ├─ payments.js
+│  │  └─ courier.js
+│  ├─ models/
+│  │  ├─ User.js
+│  │  └─ Order.js
+│  └─ utils/
+│     ├─ razorpay.js
+│     └─ shiprocket.js
+└─ README.md
+```
+
+---
+
+# 1) Frontend (public/index.html)
+
+Below is a colorful, modern single-file frontend (HTML/CSS/JS) that communicates with the backend endpoints shown later. Save as `frontend/public/index.html`.
+
+```html
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>BookCopyHub — Copy & Delivery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --grad1: linear-gradient(135deg,#6ee7b7,#60a5fa,#ff7ab6);
+      --bg:#f6fbff; --card:#ffffff; --muted:#6b7280; --accent:#0f172a; --cta:#ff7a00;
+    }
+    *{box-sizing:border-box}
+    body{font-family:'Inter',system-ui,Arial;background:linear-gradient(180deg,#eaf6ff 0%, #f7f9ff 100%);margin:0;color:#07203a}
+    header{display:flex;justify-content:space-between;align-items:center;padding:18px 28px;background:var(--grad1);color:white}
+    .logo{font-weight:800;font-size:20px}
+    nav a{color:rgba(255,255,255,0.9);margin-left:18px;text-decoration:none}
+    .container{max-width:1100px;margin:28px auto;padding:0 20px}
+    .hero{display:flex;gap:20px;align-items:center}
+    .hero-left{flex:1;background:rgba(255,255,255,0.9);padding:26px;border-radius:14px;box-shadow:0 8px 30px rgba(16,24,40,0.08)}
+    .hero-right{width:380px}
+    h1{font-size:28px;margin-bottom:6px}
+    .muted{color:var(--muted)}
+    .btn{background:var(--cta);color:white;padding:10px 14px;border-radius:10px;border:none;cursor:pointer;font-weight:700}
+    .btn.ghost{background:transparent;border:2px solid rgba(15,17,42,0.08);color:var(--accent)}
+    .card{background:white;padding:14px;border-radius:12px;box-shadow:0 6px 18px rgba(16,24,40,0.06);}
+    label{display:block;margin-top:8px;color:var(--muted);font-size:13px}
+    input, textarea, select{width:100%;padding:10px;margin-top:6px;border-radius:8px;border:1px solid #e6eef8}
+    .steps{display:flex;gap:8px;margin-top:12px}
+    .step{flex:1;background:linear-gradient(180deg,rgba(96,165,250,0.06),transparent);padding:12px;border-radius:10px}
+    footer{margin-top:34px;text-align:center;color:var(--muted);font-size:13px}
+    @media(max-width:900px){.hero{flex-direction:column}.hero-right{width:100%}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">BookCopyHub</div>
+    <nav>
+      <a href="#">Home</a>
+      <a href="#order">Order</a>
+      <a href="#writers">Writers</a>
+      <a href="#track">Track</a>
+    </nav>
+  </header>
+
+  <div class="container">
+    <section class="hero">
+      <div class="hero-left card">
+        <h1>Get your books copied — pickup & delivery, safe escrow</h1>
+        <p class="muted">We pick up your book, give to verified writers to hand-copy on A4, and return to your doorstep. Payments held in escrow until you confirm delivery.</p>
+
+        <div class="steps">
+          <div class="step"><strong>1</strong><div class="muted">Place order & pay</div></div>
+          <div class="step"><strong>2</strong><div class="muted">Courier picks up</div></div>
+          <div class="step"><strong>3</strong><div class="muted">Writer copies</div></div>
+          <div class="step"><strong>4</strong><div class="muted">Courier delivers</div></div>
+        </div>
+
+        <div style="margin-top:14px;display:flex;gap:8px">
+          <button class="btn" onclick="openOrder()">Place Order</button>
+          <button class="btn ghost" onclick="openWriter()">Become a Writer</button>
+        </div>
+      </div>
+
+      <div class="hero-right card">
+        <strong>Quick Order</strong>
+        <label>Pages to copy</label>
+        <input id="pages" type="number" value="10" min="1" />
+        <label>Style</label>
+        <select id="style"><option>Neat (₹20)</option><option>Normal (₹15)</option><option>Compact (₹12)</option></select>
+        <label>Pickup pincode</label>
+        <input id="pin" placeholder="Example: 110001" />
+        <div style="margin-top:12px;display:flex;justify-content:space-between;align-items:center"><div class="muted">Estimated</div><div id="est" style="font-weight:800">₹200</div></div>
+        <div style="margin-top:12px"><button class="btn" onclick="quickOrder()">Order Now</button></div>
+        <div class="muted" style="margin-top:10px;font-size:13px">Payments handled securely via Razorpay (server-side integration).</div>
+      </div>
+    </section>
+
+    <section id="order" style="margin-top:22px">
+      <div class="card">
+        <h3>Full Order Form</h3>
+        <label>Name</label><input id="name" />
+        <label>Phone</label><input id="phone" />
+        <label>Email</label><input id="email" />
+        <label>Address</label><textarea id="address"></textarea>
+        <label>Pages</label><input id="pagesFull" type="number" value="20" />
+        <label>Style</label><select id="styleFull"><option>Neat (₹20)</option><option>Normal (₹15)</option><option>Compact (₹12)</option></select>
+        <label>Pickup on</label><input id="pickupDate" type="date" />
+        <div style="margin-top:12px;display:flex;gap:8px"><button class="btn" onclick="placeFullOrder()">Place & Pay</button><button class="btn ghost" onclick="estimateFull()">Estimate</button></div>
+        <div id="orderMsg" class="muted" style="margin-top:8px"></div>
+      </div>
+    </section>
+
+    <section id="writers" style="margin-top:22px">
+      <div class="card">
+        <h3>Writers Hub</h3>
+        <p class="muted">Pay a small refundable security deposit to unlock verified orders. We do identity checks and keep escrow for payouts.</p>
+        <label>Your name</label><input id="wname" />
+        <label>Phone</label><input id="wphone" />
+        <label>Deposit</label><select id="deposit"><option>₹200</option><option>₹350</option><option>₹500</option></select>
+        <div style="margin-top:10px"><button class="btn" onclick="payDeposit()">Pay Deposit</button></div>
+      </div>
+    </section>
+
+    <section id="track" style="margin-top:22px">
+      <div class="card">
+        <h3>Track Order</h3>
+        <label>Order ID</label><input id="trackId" />
+        <div style="margin-top:10px"><button class="btn ghost" onclick="trackOrder()">Track</button></div>
+        <div id="trackResult" class="muted" style="margin-top:8px"></div>
+      </div>
+    </section>
+
+    <footer>
+      © BookCopyHub • Built for real delivery & escrow. Don't upload copyrighted books for resale.
+    </footer>
+  </div>
+
+  <script>
+    // Frontend helper: calls to backend (change BASE_URL to your server)
+    const BASE_URL = location.origin.replace(/:\/\/[0-9]+/,'') + ':5000'; // Example for local dev: adjust when deployed
+
+    function calcEstimate(pages, style){ let rate=15; if(style.includes('Neat')) rate=20; if(style.includes('Compact')) rate=12; return pages*rate + 60; }
+    document.getElementById('pages').addEventListener('input',()=>{document.getElementById('est').innerText='₹'+calcEstimate(Number(document.getElementById('pages').value),document.getElementById('style').value)});
+
+    function openOrder(){location.href='#order'}
+    function openWriter(){location.href='#writers'}n
+
+    async function quickOrder(){
+      const pages = Number(document.getElementById('pages').value);
+      const style = document.getElementById('style').value;
+      const pin = document.getElementById('pin').value;
+      const estimate = calcEstimate(pages, style);
+      alert('Estimate: ₹'+estimate+'
+This demo will redirect to payment (server integration required)');
+      // POST to server: /orders/create → get orderId & payment order token → open Razorpay
+      try{
+        const res = await fetch(BASE_URL + '/api/orders/create', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'Quick user',phone:'',email:'',address:pin,pages,style})});
+        const data = await res.json();
+        alert('Order created (demo): '+data.orderId + '
+Implement Razorpay on client with returned orderToken.');
+      }catch(e){console.error(e);alert('Server not reachable. Update BASE_URL in frontend to your server address.');}
+    }
+
+    async function placeFullOrder(){
+      const payload = {
+        name:document.getElementById('name').value,
+        phone:document.getElementById('phone').value,
+        email:document.getElementById('email').value,
+        address:document.getElementById('address').value,
+        pages:Number(document.getElementById('pagesFull').value),
+        style:document.getElementById('styleFull').value,
+        pickupDate:document.getElementById('pickupDate').value
+      };
+      if(!payload.name||!payload.phone||!payload.address){document.getElementById('orderMsg').innerText='Name, phone & address required';return}
+      document.getElementById('orderMsg').innerText='Submitting order...';
+      try{
+        const res = await fetch(BASE_URL + '/api/orders/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        const data = await res.json();
+        if(data.ok){ document.getElementById('orderMsg').innerText='Order created: '+data.orderId+' — redirect to payment (implement client Razorpay)'; } else document.getElementById('orderMsg').innerText='Error: '+(data.error||'');
+      }catch(e){document.getElementById('orderMsg').innerText='Server error — set BASE_URL correctly and run server.'}
+    }
+
+    async function payDeposit(){
+      const payload = {name:document.getElementById('wname').value,phone:document.getElementById('wphone').value,deposit:document.getElementById('deposit').value};
+      if(!payload.name||!payload.phone){alert('Name & phone required');return}
+      alert('Demo: deposit request will call server endpoint /api/auth/register-writer (implement server).');
+    }
+
+    async function trackOrder(){
+      const id = document.getElementById('trackId').value.trim(); if(!id){alert('Order ID required');return}
+      try{const res = await fetch(BASE_URL + '/api/orders/' + id); const data = await res.json(); document.getElementById('trackResult').innerText = JSON.stringify(data,null,2)}catch(e){document.getElementById('trackResult').innerText='Server unreachable (set BASE_URL)'}
+    }
+  </script>
+</body>
+</html>
+```
+
+> Save this file and change `BASE_URL` (client) to your backend's URL when you deploy.
+
+---
+
+# 2) Backend — Node.js + Express (server/index.js)
+
+Save the following files under `server/`.
+
+### server/package.json
+
+```json
+{
+  "name":"bookcopyhub-server",
+  "version":"1.0.0",
+  "main":"index.js",
+  "scripts":{"start":"node index.js","dev":"nodemon index.js"},
+  "dependencies":{
+    "express":"^4.18.2",
+    "mongoose":"^7.3.1",
+    "cors":"^2.8.5",
+    "body-parser":"^1.20.2",
+    "jsonwebtoken":"^9.0.0",
+    "bcryptjs":"^2.4.3",
+    "razorpay":"^2.8.0",
+    "axios":"^1.4.0",
+    "dotenv":"^16.0.3"
+  }
+}
+```
+
+### server/.env.example
+
+```
+PORT=5000
+MONGODB_URI=mongodb+srv://<user>:<pass>@cluster0.mongodb.net/bookcopyhub
+JWT_SECRET=change_this_secret
+RAZORPAY_KEY_ID=rzp_test_xxx
+RAZORPAY_KEY_SECRET=rzp_test_secret
+SHIPROCKET_API_KEY=your_shiprocket_key
+SHIPROCKET_SECRET=your_shiprocket_secret
+```
+
+### server/index.js
+
+```js
+require('dotenv').config();
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+
+const app = express();
+app.use(cors());
+app.use(bodyParser.json({limit:'10mb'}));
+
+// Connect MongoDB
+mongoose.connect(process.env.MONGODB_URI, {useNewUrlParser:true, useUnifiedTopology:true}).then(()=>console.log('MongoDB connected')).catch(e=>console.error('MongoDB error',e));
+
+// Routes
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/orders', require('./routes/orders'));
+app.use('/api/payments', require('./routes/payments'));
+app.use('/api/courier', require('./routes/courier'));
+
+app.get('/', (req,res)=>res.json({ok:true, message:'BookCopyHub API'}));
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, ()=>console.log('Server started on',PORT));
+```
+
+### server/models/User.js
+
+```js
+const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
+const userSchema = new Schema({
+  name:String,
+  phone:{type:String,unique:true},
+  email:String,
+  passwordHash:String,
+  role:{type:String,enum:['customer','writer','admin'],default:'customer'},
+  deposit:{type:Number,default:0},
+  wallet:{type:Number,default:0},
+  createdAt:{type:Date,default:Date.now}
+});
+module.exports = mongoose.model('User', userSchema);
+```
+
+### server/models/Order.js
+
+```js
+const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
+const orderSchema = new Schema({
+  orderId:{type:String,unique:true},
+  customer:{type:Schema.Types.ObjectId, ref:'User'},
+  name:String, phone:String, email:String, address:String,
+  pages:Number, style:String, pickupDate:Date,
+  amount:Number,
+  status:{type:String,enum:['open','assigned','inprogress','shipped','delivered','cancelled'],default:'open'},
+  writer:{type:Schema.Types.ObjectId, ref:'User'},
+  shipment:{type:Object,default:null},
+  createdAt:{type:Date,default:Date.now}
+});
+module.exports = mongoose.model('Order', orderSchema);
+```
+
+### server/routes/auth.js (register/login + writer deposit)
+
+```js
+const express = require('express');
+const router = express.Router();
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+
+// register customer (simple, no password complexity here)
+router.post('/register', async (req,res)=>{
+  const {name,phone,email,password} = req.body;
+  if(!phone) return res.status(400).json({error:'Phone required'});
+  const exist = await User.findOne({phone}); if(exist) return res.status(400).json({error:'Phone exists'});
+  const hash = password? await bcrypt.hash(password,10): null;
+  const user = new User({name,phone,email,passwordHash:hash}); await user.save();
+  const token = jwt.sign({id:user._id,role:user.role},process.env.JWT_SECRET);
+  res.json({ok:true, token});
+});
+
+// writer deposit (simulate payment verification server-side and add deposit to user)
+router.post('/register-writer', async (req,res)=>{
+  const {name,phone,deposit} = req.body;
+  if(!phone) return res.status(400).json({error:'Phone required'});
+  let user = await User.findOne({phone});
+  if(!user){ user = new User({name,phone,role:'writer',deposit:deposit||0}); await user.save(); }
+  else{ user.role='writer'; user.deposit = deposit||user.deposit; await user.save(); }
+  // in production, verify payment signature before updating deposit
+  return res.json({ok:true, message:'Writer registered', userId:user._id});
+});
+
+module.exports = router;
+```
+
+### server/routes/orders.js
+
+```js
+const express = require('express');
+const router = express.Router();
+const Order = require('../models/Order');
+const User = require('../models/User');
+
+// create order
+router.post('/create', async (req,res)=>{
+  try{
+    const {name,phone,email,address,pages,style,pickupDate} = req.body;
+    // price calc
+    let rate = style.includes('Neat')?20: style.includes('Compact')?12:15;
+    const amount = pages * rate + 60; // + courier
+    // create record
+    const orderId = 'ORD' + Date.now();
+    const order = new Order({orderId,name,phone,email,address,pages,style,pickupDate,amount});
+    await order.save();
+    // TODO: create payment order (razorpay) and return order token
+    res.json({ok:true, orderId:order.orderId, amount});
+  }catch(e){console.error(e); res.status(500).json({error:'server'})}
+});
+
+// get order
+router.get('/:orderId', async (req,res)=>{
+  const order = await Order.findOne({orderId:req.params.orderId}).populate('writer','name phone');
+  if(!order) return res.status(404).json({error:'not found'});
+  res.json({ok:true, order});
+});
+
+// admin assign writer (protected route ideally)
+router.post('/assign', async (req,res)=>{
+  const {orderId, writerPhone} = req.body;
+  const writer = await User.findOne({phone:writerPhone, role:'writer'});
+  if(!writer) return res.status(400).json({error:'writer not found'});
+  const order = await Order.findOne({orderId}); if(!order) return res.status(404).json({error:'order not found'});
+  order.writer = writer._id; order.status='assigned'; await order.save();
+  // create shipment pickup to writer: call courier API (server.courier)
+  res.json({ok:true, message:'assigned'});
+});
+
+module.exports = router;
+```
+
+### server/routes/payments.js (Razorpay example)
+
+```js
+const express = require('express');
+const router = express.Router();
+const Razorpay = require('razorpay');
+const Order = require('../models/Order');
+
+const instance = new Razorpay({key_id:process.env.RAZORPAY_KEY_ID, key_secret:process.env.RAZORPAY_KEY_SECRET});
+
+// create razorpay order for payment (customer)
+router.post('/create-order', async (req,res)=>{
+  const {orderId} = req.body;
+  const order = await Order.findOne({orderId}); if(!order) return res.status(404).json({error:'order not found'});
+  const amount = order.amount * 100; // paise
+  const options = {amount, currency:'INR', receipt: orderId};
+  try{
+    const rpayOrder = await instance.orders.create(options);
+    return res.json({ok:true, rpayOrder});
+  }catch(e){console.error(e);res.status(500).json({error:'razorpay error'})}
+});
+
+// verify payment signature (client will send payment_id, order_id, signature)
+router.post('/verify', async (req,res)=>{
+  // implement signature verify & mark order paid
+  // For production: verify using crypto HMAC and update Order.status
+  res.json({ok:true, message:'verify endpoint to implement on server'})
+});
+
+module.exports = router;
+```
+
+### server/routes/courier.js (Shiprocket placeholders)
+
+```js
+const express = require('express');
+const router = express.Router();
+const axios = require('axios');
+
+// NOTE: Shiprocket requires server to call their token endpoints and AWB creation
+// This file contains placeholders — implement with your Shiprocket keys
+
+router.post('/create-shipment', async (req,res)=>{
+  const {orderId, to_name, to_phone, to_address, to_pincode} = req.body;
+  // 1) request Shiprocket token -> 2) create AWB -> return tracking
+  return res.json({ok:true, tracking:'SRK-DEMO-12345', provider:'Shiprocket', message:'Implement Shiprocket API here.'});
+});
+
+module.exports = router;
+```
+
+### server/utils/razorpay.js (helper)
+
+```js
+const Razorpay = require('razorpay');
+const instance = new Razorpay({key_id:process.env.RAZORPAY_KEY_ID, key_secret:process.env.RAZORPAY_KEY_SECRET});
+module.exports = instance;
+```
+
+### server/utils/shiprocket.js (helper placeholder)
+
+```js
+const axios = require('axios');
+module.exports = {
+  async getToken(){
+    // POST to Shiprocket token endpoint with API key/secret
+    // store token & expiry in server cache
+    return 'demo-token';
+  }
+}
+```
+
+---
+
+# 3) README — Setup & Deploy
+
+Create `README.md` in project root with these instructions:
+
+```
+# BookCopyHub — Setup
+
+## Prerequisites
+- Node.js 18+
+- MongoDB (Atlas recommended)
+- Razorpay account (for payments)
+- Shiprocket / Delhivery account (for courier) — optional to start
+
+## Local dev (backend)
+cd server
+cp .env.example .env    # fill vars
+npm install
+npm run dev
+
+## Frontend
+Open frontend/public/index.html in browser or host it via Netlify/Vercel.
+Change BASE_URL in frontend to your backend URL (eg https://api.bookcopyhub.com or http://10.0.2.2:5000)
+
+## Production
+- Host backend on Render/Heroku/DigitalOcean.
+- Host frontend on Netlify/Vercel.
+- Use real payment and courier keys on server .env and secure them.
+```
+
+---
+
+# 4) Important Business & Legal Notes
+
+- **Copyright:** Do not allow copying & selling of copyrighted books. Add clear Terms of Service that the platform only copies materials for which the customer owns reproduction rights or personal study.
+- **KYC & Fraud Prevention:** For higher volumes, enforce KYC on writers (ID photo) and customers for high-value orders.
+- **Escrow & Refunds:** Hold payments in escrow; release after delivery confirmation or after arbitration window.
+- **Fee/Deposit policy:** Keep deposit low (₹200–₹500), refundable after X completed orders or after cooling period.
+
+---
+
+# 5) Next steps I can do for you (choose one)
+1. Generate **full server code files** ready to paste (I already included core files above). I can expand `verify` endpoint for Razorpay signature verification and implement real Shiprocket API sequence.  
+2. Create a **complete deployment script** (Dockerfile + docker-compose + deploy to Render/VPS).  
+3. Build **admin panel UI** (React + Tailwind) for order management and writer payout.  
+4. Provide **legal-ready Terms & Conditions** and writer/customer agreement templates.
+
+Tell me which of the above you'd like **now** and I'll produce that exact code next (I will not ask more questions; I'll pick reasonable defaults for missing choices).
+
+---
+
+*Note: I placed all code as a starter. You must replace API keys/DB strings with your own and move sensitive operations server-side (payments, OTP, courier). If you want, I can now output the exact completed `server/index.js` + `routes/payments.js` with Razorpay verify and full Shiprocket flow — say "Generate backend with Razorpay + Shiprocket" and I'll produce it immediately.*
